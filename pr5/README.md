@@ -95,7 +95,7 @@ Program completed successfully.
 ### Перевірка на витоки пам'яті
 Для перевірки на витоки пам'яті можна використати інструмент Valgrind:
 ```bash
-valgrind --leak-check=full ./cyclic_reference
+valgrind --leak-check=full ./Var15
 ```
 
 При правильній реалізації функції `correctFreeGraph()` Valgrind не виявить витоків пам'яті.
