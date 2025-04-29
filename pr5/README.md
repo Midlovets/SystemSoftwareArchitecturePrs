@@ -66,17 +66,6 @@ void correctFreeGraph(Graph* graph) {
 }
 ```
 ---
-### Компіляція та запуск
-Для компіляції програми у FreeBSD використовуйте:
-```bash
-cc -Wall -Wextra -g -std=c11 cyclic_reference.c -o cyclic_reference
-```
-
-Для запуску:
-```bash
-./cyclic_reference
-```
----
 ### Результати запуску
 При запуску програми вона:
 1. Створює граф з чотирма вузлами
