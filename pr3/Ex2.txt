@@ -1,0 +1,11 @@
+docker run --rm -it --privileged --cap-add=SYS_ADMIN ubuntu bash
+
+apt update && apt install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r)
+
+ulimit -a | grep "cpu time"
+
+perf stat -d dd if=/dev/zero of=/dev/null bs=1M count=1000000
+
+ulimit -t 5
+
+perf stat -d dd if=/dev/zero of=/dev/null bs=1M count=1000000
