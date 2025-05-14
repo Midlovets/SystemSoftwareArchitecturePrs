@@ -1,7 +1,8 @@
 #include <stdio.h>
 
 int main() {
-    int array[10];  
-    printf("Value at array[5]: %d\n", array[5]);  
+    int x;
+    int y = x + 1; // Читання неініціалізованої змінної
+    printf("y = %d\n", y);
     return 0;
 }
