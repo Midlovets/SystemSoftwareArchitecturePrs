@@ -1,8 +1,9 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 int main() {
-    int x;
-    int y = x + 1; // Читання неініціалізованої змінної
-    printf("y = %d\n", y);
+    int *arr = (int*)malloc(5 * sizeof(int));
+    arr[5] = 10; 
+    free(arr);
     return 0;
 }
