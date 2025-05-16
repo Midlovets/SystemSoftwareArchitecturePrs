@@ -108,7 +108,3 @@ cc -o Var15 Var15.c -lutil
 ```bash
 sudo chown root Var15
 ```
-
-## Результат роботи:
-![](images/7.png)
-
