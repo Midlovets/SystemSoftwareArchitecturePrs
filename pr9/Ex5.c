@@ -1,47 +1,98 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
 #include <sys/types.h>
-
-#define TEMP_FILE "tempfile.txt"
+#include <sys/stat.h>
+#include <pwd.h>
+#include <errno.h>
 
 int main() {
-    FILE *fp;
-
-    printf("Creating temporary file as a regular user...\n");
-
-    fp = fopen(TEMP_FILE, "w");
-    if (!fp) {
-        perror("Failed to create temporary file");
-        return EXIT_FAILURE;
+    uid_t real_uid = getuid(); // Get real UID (regular user)
+    struct passwd *pw = getpwuid(real_uid);
+    if (!pw) {
+        fprintf(stderr, "Failed to get user info: %s\n", strerror(errno));
+        return 1;
     }
-    fprintf(fp, "Temporary file for testing.\n");
-    fclose(fp);
+    const char *tmp_file = "/tmp/testfile_perms.txt"; // Path to temporary file
 
-    printf("Temporary file created: %s\n", TEMP_FILE);
-
-    printf("Changing owner to root and setting permissions to 600...\n");
-
-    if (system("sudo chown root:root tempfile.txt") != 0) {
-        perror("Error executing chown");
+    // Step 1: Create temporary file as regular user
+    printf("Creating temporary file %s as regular user (UID: %d)\n", tmp_file, real_uid);
+    int fd = open(tmp_file, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd < 0) {
+        fprintf(stderr, "Failed to create file %s: %s\n", tmp_file, strerror(errno));
+        return 1;
     }
-    if (system("sudo chmod 600 tempfile.txt") != 0) {
-        perror("Error executing chmod");
+    const char *content = "This is a test file for permission checks.\n";
+    write(fd, content, strlen(content));
+    close(fd);
+
+    // Step 2: Change ownership and permissions as root
+    if (setuid(0) != 0) {
+        fprintf(stderr, "Failed to switch to root: %s\n", strerror(errno));
+        return 1;
+    }
+    printf("Switched to root (UID: %d). Changing ownership and permissions for %s\n", getuid(), tmp_file);
+
+    // Change ownership to root
+    if (chown(tmp_file, 0, 0) != 0) {
+        fprintf(stderr, "Failed to change owner of %s: %s\n", tmp_file, strerror(errno));
+        return 1;
     }
 
-    printf("Checking current user's access permissions to the file...\n");
+    // Test different permission sets
+    mode_t permissions[] = {0600, 0644, 0400, 0000}; // rw-------, rw-r--r--, r--------, ---------
+    const char *perm_desc[] = {"rw------- (0600)", "rw-r--r-- (0644)", "r-------- (0400)", "--------- (0000)"};
+    int num_perms = sizeof(permissions) / sizeof(permissions[0]);
 
-    if (access(TEMP_FILE, R_OK) == 0) {
-        printf("User can read the file.\n");
-    } else {
-        printf("User cannot read the file.\n");
+    for (int i = 0; i < num_perms; i++) {
+        // Change permissions
+        if (chmod(tmp_file, permissions[i]) != 0) {
+            fprintf(stderr, "Failed to change permissions for %s: %s\n", tmp_file, strerror(errno));
+            return 1;
+        }
+        printf("Permissions changed to %s\n", perm_desc[i]);
+
+        // Switch back to regular user
+        if (setuid(real_uid) != 0) {
+            fprintf(stderr, "Failed to switch back to UID %d: %s\n", real_uid, strerror(errno));
+            return 1;
+        }
+        printf("Switched back to regular user (UID: %d)\n", getuid());
+
+        // Check read and write access
+        printf("Checking access permissions for %s:\n", tmp_file);
+        if (access(tmp_file, R_OK) == 0) {
+            printf(" - Read: allowed\n");
+        } else {
+            printf(" - Read: denied (%s)\n", strerror(errno));
+        }
+        if (access(tmp_file, W_OK) == 0) {
+            printf(" - Write: allowed\n");
+        } else {
+            printf(" - Write: denied (%s)\n", strerror(errno));
+        }
+
+        // Switch back to root for next iteration
+        if (setuid(0) != 0) {
+            fprintf(stderr, "Failed to switch to root: %s\n", strerror(errno));
+            return 1;
+        }
     }
 
-    if (access(TEMP_FILE, W_OK) == 0) {
-        printf("User can write to the file.\n");
-    } else {
-        printf("User cannot write to the file.\n");
+    // Delete the file (as root)
+    printf("Deleting file %s\n", tmp_file);
+    if (unlink(tmp_file) != 0) {
+        fprintf(stderr, "Failed to delete file %s: %s\n", tmp_file, strerror(errno));
+        return 1;
+    }
+    printf("File %s successfully deleted\n", tmp_file);
+
+    // Switch back to regular user
+    if (setuid(real_uid) != 0) {
+        fprintf(stderr, "Failed to switch back to UID %d: %s\n", real_uid, strerror(errno));
+        return 1;
     }
 
     return 0;

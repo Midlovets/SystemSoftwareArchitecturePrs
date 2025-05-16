@@ -8,18 +8,18 @@
 #include <errno.h>
 
 int main() {
-    uid_t real_uid = getuid(); // Get real UID (regular user)
+    uid_t real_uid = getuid(); 
     struct passwd *pw = getpwuid(real_uid);
     if (!pw) {
         fprintf(stderr, "Failed to get user info: %s\n", strerror(errno));
         return 1;
     }
-    const char *homedir = pw->pw_dir; // User's home directory
-    const char *src_file = "/tmp/testfile.txt"; // Path to source file
+    const char *homedir = pw->pw_dir; 
+    const char *src_file = "/tmp/testfile.txt"; 
     char dest_file[256];
-    snprintf(dest_file, sizeof(dest_file), "%s/testfile_copy.txt", homedir); // Path to copied file
+    snprintf(dest_file, sizeof(dest_file), "%s/testfile_copy.txt", homedir); 
 
-    // Step 1: Create file as regular user
+
     printf("Creating file %s as regular user (UID: %d)\n", src_file, real_uid);
     int fd = open(src_file, O_CREAT | O_WRONLY | O_TRUNC, 0644);
     if (fd < 0) {
@@ -30,7 +30,6 @@ int main() {
     write(fd, content, strlen(content));
     close(fd);
 
-    // Step 2: Copy file as root
     if (setuid(0) != 0) {
         fprintf(stderr, "Failed to switch to root: %s\n", strerror(errno));
         return 1;
@@ -55,14 +54,12 @@ int main() {
     fclose(src);
     fclose(dest);
 
-    // Switch back to regular user
     if (setuid(real_uid) != 0) {
         fprintf(stderr, "Failed to switch back to UID %d: %s\n", real_uid, strerror(errno));
         return 1;
     }
     printf("Switched back to regular user (UID: %d)\n", getuid());
 
-    // Step 3: Attempt to modify file as regular user
     printf("Attempting to modify file %s as regular user\n", dest_file);
     fd = open(dest_file, O_WRONLY | O_APPEND);
     if (fd < 0) {
@@ -74,7 +71,6 @@ int main() {
         printf("File %s successfully modified\n", dest_file);
     }
 
-    // Step 4: Attempt to delete file as regular user
     printf("Attempting to delete file %s using unlink\n", dest_file);
     if (unlink(dest_file) != 0) {
         fprintf(stderr, "Failed to delete file %s: %s\n", dest_file, strerror(errno));
