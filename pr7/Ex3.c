@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <stdio.h> 
 #include <stdlib.h>
 #include <string.h>
 
@@ -6,7 +6,7 @@
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-        fprintf(stderr, "Використання: %s <слово> <файл>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <word> <file>\n", argv[0]);
         return 1;
     }
 
@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
 
     FILE *fp = fopen(filename, "r");
     if (!fp) {
-        perror("Не вдалося відкрити файл");
+        perror("Failed to open file");
         return 1;
     }
 

@@ -1,1 +1,6 @@
-lalala
+Hello world!
+This is a simple test file.
+We will search for words like hello, test, and more.
+HELLO in uppercase should not be matched if the search is case-sensitive.
+Feel free to test this simple grep-like program.
+Have a nice day!
