@@ -1,22 +1,21 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <sys/time.h>
-
-long get_time_ms() {
-    struct timeval t;
-    gettimeofday(&t, NULL);
-    return t.tv_sec * 1000L + t.tv_usec / 1000;
-}
+#include <unistd.h>
 
 int main() {
-    long start_time = get_time_ms();
+    struct timeval start, end;
+    long elapsed;
 
-    long sum = 0;
-    for (long i = 0; i < 100000000L; i++) {
-        sum += i;
-    }
+    gettimeofday(&start, NULL);
 
-    long end_time = get_time_ms();
-    printf("Час виконання: %ld мс\n", end_time - start_time);
+    for (volatile int i = 0; i < 1000000; i++);
+
+    gettimeofday(&end, NULL);
+
+    elapsed = (end.tv_sec - start.tv_sec) * 1000;
+    elapsed += (end.tv_usec - start.tv_usec) / 1000;
+
+    printf("Час виконання: %ld мс\n", elapsed);
+
     return 0;
 }
