@@ -15,7 +15,7 @@ int main() {
     elapsed = (end.tv_sec - start.tv_sec) * 1000;
     elapsed += (end.tv_usec - start.tv_usec) / 1000;
 
-    printf("Час виконання: %ld мс\n", elapsed);
+    printf("Execution time: %ld ms\n", elapsed);
 
     return 0;
 }
