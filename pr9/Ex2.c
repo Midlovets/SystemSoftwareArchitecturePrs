@@ -5,7 +5,6 @@
 int main() {
     printf("Attempting to read the contents of /etc/shadow with administrator privileges\n");
     
-    // Check if sudo is available
     if (system("which sudo > /dev/null 2>&1") == 0) {
         printf("Using sudo:\n");
         return system("sudo cat /etc/shadow");
