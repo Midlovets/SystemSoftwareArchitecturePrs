@@ -4,8 +4,8 @@
 #include <pwd.h>
 #include <sys/types.h>
 
-#define FILENAME "testfile.txt"
-#define COPY_FILENAME "copied_testfile.txt"
+#define FILE1 "test1.txt"
+#define FILE2 "test2.txt"
 
 int main() {
     FILE *fp;
@@ -17,50 +17,47 @@ int main() {
 
     printf("Current user: %s\n", pw->pw_name);
 
-    // 1. Create a file as a normal user
-    printf("\n[+] Creating file %s...\n", FILENAME);
-    fp = fopen(FILENAME, "w");
+    // 1. Create test1.txt as a normal user
+    printf("\nCreating file: %s...\n", FILE1);
+    fp = fopen(FILE1, "w");
     if (!fp) {
         perror("Failed to create file");
         return EXIT_FAILURE;
     }
-    fprintf(fp, "This is a test file created by a normal user.\n");
+    fprintf(fp, "This is test file 1 created by a normal user.\n");
     fclose(fp);
+    printf("File %s created successfully.\n", FILE1);
 
-    printf("[+] File created.\n");
-
-    // 2. Copy file as root (sudo)
-    printf("\n[+] Copying file to home directory using sudo...\n");
-
+    // 2. Copy test1.txt to test2.txt using sudo
+    printf("\nCopying %s to %s using sudo...\n", FILE1, FILE2);
     char command[512];
-    snprintf(command, sizeof(command), "sudo cp %s /home/%s/%s", FILENAME, pw->pw_name, COPY_FILENAME);
+    snprintf(command, sizeof(command), "sudo cp %s /home/%s/%s", FILE1, pw->pw_name, FILE2);
     if (system(command) != 0) {
         perror("Failed to copy file");
         return EXIT_FAILURE;
     }
+    printf("File copied to /home/%s/%s\n", pw->pw_name, FILE2);
 
-    printf("[+] File copied to /home/%s/%s\n", pw->pw_name, COPY_FILENAME);
-
-    // 3. Try to modify the file as a normal user
-    printf("\n[+] Trying to modify the file as a normal user...\n");
-    snprintf(command, sizeof(command), "/home/%s/%s", pw->pw_name, COPY_FILENAME);
+    // 3. Try to modify test2.txt as a normal user
+    printf("\nAttempting to modify %s as a normal user...\n", FILE2);
+    snprintf(command, sizeof(command), "/home/%s/%s", pw->pw_name, FILE2);
     fp = fopen(command, "a");
     if (!fp) {
         perror("Failed to open file for writing");
-        printf("[-] Probably no write permissions on the file.\n");
+        printf("Likely no write permissions for this file.\n");
     } else {
         fprintf(fp, "Added a line by a normal user.\n");
         fclose(fp);
-        printf("[+] Write successful!\n");
+        printf("File modified successfully.\n");
     }
 
-    // 4. Try to delete the file as a normal user
-    printf("\n[+] Trying to delete the file as a normal user...\n");
+    // 4. Try to delete test2.txt as a normal user
+    printf("\nAttempting to delete %s as a normal user...\n", FILE2);
     if (remove(command) != 0) {
         perror("Failed to delete the file");
-        printf("[-] Probably no permissions to delete the file.\n");
+        printf("Likely no permissions to delete the file.\n");
     } else {
-        printf("[+] File deleted successfully!\n");
+        printf("File deleted successfully.\n");
     }
 
     return 0;
