@@ -1,25 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <sys/wait.h>  
 
 int main() {
-    // Check if the program is running as root
-    if (geteuid() == 0) {
-        printf("Program is running with administrator privileges.\n");
+    printf("Retrieving contents of /etc/shadow using sudo...\n");
+
+    int status = system("sudo cat /etc/shadow");
+
+    if (status == -1) {
+        perror("Error executing command");
+        return EXIT_FAILURE;
     } else {
-        printf("Program is running as a normal user. Attempting to gain elevated access via sudo...\n");
+        printf("\nCommand executed with exit code: %d\n", WEXITSTATUS(status));
     }
 
-    // Execute the command using sudo
-    int ret = system("sudo cat /etc/shadow");
-
-    if (ret == -1) {
-        perror("system");
-        return 1;
-    } else if (WEXITSTATUS(ret) != 0) {
-        fprintf(stderr, "Command failed with exit code: %d\n", WEXITSTATUS(ret));
-        return 1;
-    }
-
-    return 0;
+    return EXIT_SUCCESS;
 }

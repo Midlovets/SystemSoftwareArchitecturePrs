@@ -1,76 +1,66 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pwd.h>
 #include <sys/types.h>
-#include <fcntl.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/stat.h>
 
-#define USER_FILE "user_file.txt"
-#define COPY_FILE "/home/username/user_file_copy.txt"  // Змініть на реальний домашній каталог користувача
+#define FILENAME "testfile.txt"
+#define COPY_FILENAME "copied_testfile.txt"
 
 int main() {
-    // 1. Створюємо файл від імені звичайного користувача
-    FILE *f = fopen(USER_FILE, "w");
-    if (!f) {
-        perror("fopen");
-        return 1;
-    }
-    fprintf(f, "Це оригінальний файл.\n");
-    fclose(f);
-
-    // 2. Піднімаємо права до root (припустимо, SUID встановлений)
-    if (setuid(0) != 0) {
-        perror("setuid root");
-        return 1;
-    }
-    printf("Дія від імені root\n");
-
-    // 3. Копіюємо файл у домашній каталог користувача
-    FILE *src = fopen(USER_FILE, "r");
-    if (!src) {
-        perror("fopen src");
-        return 1;
-    }
-    FILE *dst = fopen(COPY_FILE, "w");
-    if (!dst) {
-        perror("fopen dst");
-        fclose(src);
-        return 1;
+    FILE *fp;
+    struct passwd *pw = getpwuid(getuid());
+    if (!pw) {
+        perror("Failed to get user information");
+        return EXIT_FAILURE;
     }
 
-    char buf[1024];
-    size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), src)) > 0) {
-        fwrite(buf, 1, n, dst);
-    }
-    fclose(src);
-    fclose(dst);
+    printf("Current user: %s\n", pw->pw_name);
 
-    // 4. Повертаємося до звичайного користувача
-    uid_t user_uid = getuid();
-    if (setuid(user_uid) != 0) {
-        perror("setuid user");
-        return 1;
+    // 1. Create a file as a normal user
+    printf("\n[+] Creating file %s...\n", FILENAME);
+    fp = fopen(FILENAME, "w");
+    if (!fp) {
+        perror("Failed to create file");
+        return EXIT_FAILURE;
     }
-    printf("Дія від імені користувача\n");
+    fprintf(fp, "This is a test file created by a normal user.\n");
+    fclose(fp);
 
-    // 5. Пробуємо змінити скопійований файл
-    FILE *edit = fopen(COPY_FILE, "a");  // Відкриваємо в режимі дозапису
-    if (!edit) {
-        perror("fopen edit");
+    printf("[+] File created.\n");
+
+    // 2. Copy file as root (sudo)
+    printf("\n[+] Copying file to home directory using sudo...\n");
+
+    char command[512];
+    snprintf(command, sizeof(command), "sudo cp %s /home/%s/%s", FILENAME, pw->pw_name, COPY_FILENAME);
+    if (system(command) != 0) {
+        perror("Failed to copy file");
+        return EXIT_FAILURE;
+    }
+
+    printf("[+] File copied to /home/%s/%s\n", pw->pw_name, COPY_FILENAME);
+
+    // 3. Try to modify the file as a normal user
+    printf("\n[+] Trying to modify the file as a normal user...\n");
+    snprintf(command, sizeof(command), "/home/%s/%s", pw->pw_name, COPY_FILENAME);
+    fp = fopen(command, "a");
+    if (!fp) {
+        perror("Failed to open file for writing");
+        printf("[-] Probably no write permissions on the file.\n");
     } else {
-        fprintf(edit, "Додано користувачем.\n");
-        fclose(edit);
-        printf("Файл змінено успішно.\n");
+        fprintf(fp, "Added a line by a normal user.\n");
+        fclose(fp);
+        printf("[+] Write successful!\n");
     }
 
-    // 6. Пробуємо видалити файл
-    if (remove(COPY_FILE) == 0) {
-        printf("Файл видалено успішно.\n");
+    // 4. Try to delete the file as a normal user
+    printf("\n[+] Trying to delete the file as a normal user...\n");
+    if (remove(command) != 0) {
+        perror("Failed to delete the file");
+        printf("[-] Probably no permissions to delete the file.\n");
     } else {
-        perror("remove");
+        printf("[+] File deleted successfully!\n");
     }
 
     return 0;
