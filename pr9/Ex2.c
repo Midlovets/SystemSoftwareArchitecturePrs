@@ -3,21 +3,16 @@
 #include <unistd.h>
 
 int main() {
-    printf("Attempting to read the contents of /etc/shadow with administrator privileges\n");
-    
-    if (system("which sudo > /dev/null 2>&1") == 0) {
-        printf("Using sudo:\n");
-        return system("sudo cat /etc/shadow");
-    } 
-    // Check if doas is available (an alternative to sudo on FreeBSD)
-    else if (system("which doas > /dev/null 2>&1") == 0) {
-        printf("Using doas:\n");
-        return system("doas cat /etc/shadow");
-    }
-    // If neither sudo nor doas is available
-    else {
-        printf("Neither sudo nor doas found on this system.\n");
-        printf("Cannot run the command with administrator privileges.\n");
+    // Команда для виконання від імені адміністратора
+    const char *cmd = "sudo cat /etc/shadow";
+
+    printf("Виконую: %s\n\n", cmd);
+    int result = system(cmd);
+
+    if (result != 0) {
+        fprintf(stderr, "Не вдалося виконати команду. Перевірте, чи маєте доступ через sudo без пароля.\n");
         return 1;
     }
+
+    return 0;
 }
