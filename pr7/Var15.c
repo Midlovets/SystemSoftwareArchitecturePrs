@@ -8,7 +8,6 @@
 
 #define MAX_GROUPS 100
 
-// Функція для виведення списку членів групи
 void print_group_members(gid_t gid) {
     struct group *grp = getgrgid(gid);
     if (!grp) {
@@ -27,7 +26,6 @@ void print_group_members(gid_t gid) {
     printf("\n");
 }
 
-// Перевірка, чи користувач входить у групу
 int is_user_in_group(const char *user, gid_t gid) {
     struct group *grp = getgrgid(gid);
     if (!grp)
@@ -59,7 +57,6 @@ int main(int argc, char *argv[]) {
     gid_t groups[MAX_GROUPS];
     int ngroups = MAX_GROUPS;
 
-    // Отримати всі групи користувача
     if (getgrouplist(username, pwd->pw_gid, groups, &ngroups) == -1) {
         fprintf(stderr, "Too many groups for user '%s'\n", username);
         return 1;
@@ -74,12 +71,10 @@ int main(int argc, char *argv[]) {
     }
 
     printf("\nGroup membership details and intersections:\n");
-    // Вивести членів кожної групи
     for (int i = 0; i < ngroups; i++) {
         print_group_members(groups[i]);
     }
 
-    // Перевірка перетину груп: спільні користувачі
     printf("\nGroup intersections (groups sharing members):\n");
     for (int i = 0; i < ngroups; i++) {
         for (int j = i + 1; j < ngroups; j++) {
