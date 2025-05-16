@@ -47,42 +47,32 @@ int main() {
     char timebuf[64];
 
     while ((entry = readdir(dir)) != NULL) {
-        // Пропускаємо . і ..
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
 
-        // Отримуємо інформацію про файл
         if (lstat(entry->d_name, &st) == -1) {
             perror("lstat");
             continue;
         }
 
-        // Права доступу
         print_permissions(st.st_mode);
 
-        // Кількість жорстких посилань
         printf("%2lu ", (unsigned long)st.st_nlink);
 
-        // Власник
         struct passwd *pw = getpwuid(st.st_uid);
         printf("%-8s ", pw ? pw->pw_name : "unknown");
 
-        // Група
         struct group *gr = getgrgid(st.st_gid);
         printf("%-8s ", gr ? gr->gr_name : "unknown");
 
-        // Розмір файлу
         printf("%8lld ", (long long)st.st_size);
 
-        // Час останньої модифікації
         struct tm *tm = localtime(&st.st_mtime);
         strftime(timebuf, sizeof(timebuf), "%b %d %H:%M", tm);
         printf("%s ", timebuf);
 
-        // Ім'я файлу
         printf("%s", entry->d_name);
 
-        // Якщо це символічне посилання — вивести куди воно вказує
         if (S_ISLNK(st.st_mode)) {
             char link_target[1024];
             ssize_t len = readlink(entry->d_name, link_target, sizeof(link_target)-1);
