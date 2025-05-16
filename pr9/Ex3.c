@@ -1,63 +1,85 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <pwd.h>
+#include <fcntl.h>
+#include <string.h>
 #include <sys/types.h>
-
-#define FILE1 "test1.txt"
-#define FILE2 "test2.txt"
+#include <pwd.h>
+#include <errno.h>
 
 int main() {
-    FILE *fp;
-    struct passwd *pw = getpwuid(getuid());
+    uid_t real_uid = getuid(); // Отримати реальний UID (звичайний користувач)
+    struct passwd *pw = getpwuid(real_uid);
     if (!pw) {
-        perror("Failed to get user information");
-        return EXIT_FAILURE;
+        fprintf(stderr, "Не вдалося отримати інформацію про користувача: %s\n", strerror(errno));
+        return 1;
     }
+    const char *homedir = pw->pw_dir; // Домашня директорія користувача
+    const char *src_file = "/tmp/testfile.txt"; // Шлях до вихідного файлу
+    char dest_file[256];
+    snprintf(dest_file, sizeof(dest_file), "%s/testfile_copy.txt", homedir); // Шлях до копії файлу
 
-    printf("Current user: %s\n", pw->pw_name);
-
-    // 1. Create test1.txt as a normal user
-    printf("\nCreating file: %s...\n", FILE1);
-    fp = fopen(FILE1, "w");
-    if (!fp) {
-        perror("Failed to create file");
-        return EXIT_FAILURE;
+    // Крок 1: Створення файлу від імені звичайного користувача
+    printf("Створюємо файл %s від імені звичайного користувача (UID: %d)\n", src_file, real_uid);
+    int fd = open(src_file, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd < 0) {
+        fprintf(stderr, "Не вдалося створити файл %s: %s\n", src_file, strerror(errno));
+        return 1;
     }
-    fprintf(fp, "This is test file 1 created by a normal user.\n");
-    fclose(fp);
-    printf("File %s created successfully.\n", FILE1);
+    const char *content = "Це тестовий файл, створений звичайним користувачем.\n";
+    write(fd, content, strlen(content));
+    close(fd);
 
-    // 2. Copy test1.txt to test2.txt using sudo
-    printf("\nCopying %s to %s using sudo...\n", FILE1, FILE2);
-    char command[512];
-    snprintf(command, sizeof(command), "sudo cp %s /home/%s/%s", FILE1, pw->pw_name, FILE2);
-    if (system(command) != 0) {
-        perror("Failed to copy file");
-        return EXIT_FAILURE;
+    // Крок 2: Копіювання файлу від імені root
+    if (setuid(0) != 0) {
+        fprintf(stderr, "Не вдалося переключитися на root: %s\n", strerror(errno));
+        return 1;
     }
-    printf("File copied to /home/%s/%s\n", pw->pw_name, FILE2);
+    printf("Переключено на root (UID: %d). Копіюємо файл у %s\n", getuid(), dest_file);
+    FILE *src = fopen(src_file, "r");
+    if (!src) {
+        fprintf(stderr, "Не вдалося відкрити вихідний файл %s: %s\n", src_file, strerror(errno));
+        return 1;
+    }
+    FILE *dest = fopen(dest_file, "w");
+    if (!dest) {
+        fprintf(stderr, "Не вдалося створити файл %s: %s\n", dest_file, strerror(errno));
+        fclose(src);
+        return 1;
+    }
+    char buffer[1024];
+    size_t bytes;
+    while ((bytes = fread(buffer, 1, sizeof(buffer), src)) > 0) {
+        fwrite(buffer, 1, bytes, dest);
+    }
+    fclose(src);
+    fclose(dest);
 
-    // 3. Try to modify test2.txt as a normal user
-    printf("\nAttempting to modify %s as a normal user...\n", FILE2);
-    snprintf(command, sizeof(command), "/home/%s/%s", pw->pw_name, FILE2);
-    fp = fopen(command, "a");
-    if (!fp) {
-        perror("Failed to open file for writing");
-        printf("Likely no write permissions for this file.\n");
+    // Повернення до звичайного користувача
+    if (setuid(real_uid) != 0) {
+        fprintf(stderr, "Не вдалося повернутися до UID %d: %s\n", real_uid, strerror(errno));
+        return 1;
+    }
+    printf("Повернено до звичайного користувача (UID: %d)\n", getuid());
+
+    // Крок 3: Спроба редагування файлу
+    printf("Намагаємося редагувати файл %s від імені звичайного користувача\n", dest_file);
+    fd = open(dest_file, O_WRONLY | O_APPEND);
+    if (fd < 0) {
+        fprintf(stderr, "Не вдалося відкрити файл %s для редагування: %s\n", dest_file, strerror(errno));
     } else {
-        fprintf(fp, "Added a line by a normal user.\n");
-        fclose(fp);
-        printf("File modified successfully.\n");
+        const char *new_content = "Додано текст від звичайного користувача.\n";
+        write(fd, new_content, strlen(new_content));
+        close(fd);
+        printf("Файл %s успішно відредаговано\n", dest_file);
     }
 
-    // 4. Try to delete test2.txt as a normal user
-    printf("\nAttempting to delete %s as a normal user...\n", FILE2);
-    if (remove(command) != 0) {
-        perror("Failed to delete the file");
-        printf("Likely no permissions to delete the file.\n");
+    // Крок 4: Спроба видалення файлу
+    printf("Намагаємося видалити файл %s за допомогою unlink\n", dest_file);
+    if (unlink(dest_file) != 0) {
+        fprintf(stderr, "Не вдалося видалити файл %s: %s\n", dest_file, strerror(errno));
     } else {
-        printf("File deleted successfully.\n");
+        printf("Файл %s успішно видалено\n", dest_file);
     }
 
     return 0;
