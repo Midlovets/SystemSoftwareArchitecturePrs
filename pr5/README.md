@@ -72,24 +72,10 @@ void correctFreeGraph(Graph* graph) {
 3. Відображає структуру графа з інформацією про посилання
 4. Коректно звільняє всю пам'ять, уникаючи витоків
 
-Приклад виводу:
-```
-Demonstrating cyclic references in dynamic data structures
+Результат:
 
-Graph Contents:
-------------------------
-Node ID: 1, Data: First Node
-  References Node: 3
-Node ID: 2, Data: Second Node
-  References Node: 4
-Node ID: 3, Data: Third Node
-  References Node: 1
-Node ID: 4, Data: Fourth Node
-  References Node: 2
-------------------------
+![](Var15.png)
 
-Program completed successfully.
-```
 ---
 ### Перевірка на витоки пам'яті
 Для перевірки на витоки пам'яті можна використати інструмент Valgrind:
