@@ -3,8 +3,8 @@
 #include <unistd.h>
 
 int main() {
-    // Команда для виконання від імені адміністратора
-    const char *cmd = "sudo cat /etc/shadow";
+    // Команда для виконання від імені адміністратора (FreeBSD)
+    const char *cmd = "sudo /bin/cat /etc/master.passwd";
 
     printf("Виконую: %s\n\n", cmd);
     int result = system(cmd);
