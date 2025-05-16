@@ -1,15 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 int main() {
-    if (setuid(0) != 0) {
-        perror("setuid");
-        return 1;
+    printf("Отримання вмісту /etc/shadow через sudo...\n");
+
+    int status = system("sudo cat /etc/shadow");
+
+    if (status == -1) {
+        perror("Помилка виконання команди");
+        return EXIT_FAILURE;
+    } else {
+        printf("\nКоманда виконана з кодом: %d\n", WEXITSTATUS(status));
     }
 
-    execl("/bin/cat", "cat", "/etc/shadow", (char *)NULL);
-
-    perror("execl");
-    return 1;
+    return EXIT_SUCCESS;
 }
