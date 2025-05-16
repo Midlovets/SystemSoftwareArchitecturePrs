@@ -1,135 +1,100 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <libprocstat.h>
-#include <kvm.h>
-#include <sys/param.h>
-#include <sys/sysctl.h>
-#include <sys/user.h>
-#include <sys/proc.h>
-#include <pwd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
-#include <errno.h>
+#include <dirent.h>
+#include <pwd.h>
+#include <grp.h>
+#include <time.h>
+#include <string.h>
 
-// Список стандартних шеллів
-const char *standard_shells[] = {
-    "/bin/sh",
-    "/bin/csh",
-    "/bin/tcsh",
-    NULL
-};
+// Функція для виводу рядка прав доступу (тип + rwxrwxrwx)
+void print_permissions(mode_t mode) {
+    char perms[11] = "----------";
 
-// Перевірка, чи є шлях стандартним шеллом
-int is_standard_shell(const char *path) {
-    for (int i = 0; standard_shells[i]; i++) {
-        if (strcmp(path, standard_shells[i]) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
+    if (S_ISDIR(mode)) perms[0] = 'd';
+    else if (S_ISLNK(mode)) perms[0] = 'l';
+    else if (S_ISCHR(mode)) perms[0] = 'c';
+    else if (S_ISBLK(mode)) perms[0] = 'b';
+    else if (S_ISFIFO(mode)) perms[0] = 'p';
+    else if (S_ISSOCK(mode)) perms[0] = 's';
 
-// Отримання повного шляху до виконуваного файлу процесу
-char *get_process_path(struct kinfo_proc *proc) {
-    char *path = malloc(PATH_MAX);
-    if (!path) {
-        perror("Не вдалося виділити пам'ять для шляху");
-        return NULL;
-    }
+    if (mode & S_IRUSR) perms[1] = 'r';
+    if (mode & S_IWUSR) perms[2] = 'w';
+    if (mode & S_IXUSR) perms[3] = 'x';
 
-    // Формуємо шлях до /proc/<pid>/file
-    char proc_path[PATH_MAX];
-    snprintf(proc_path, PATH_MAX, "/proc/%d/file", proc->ki_pid);
+    if (mode & S_IRGRP) perms[4] = 'r';
+    if (mode & S_IWGRP) perms[5] = 'w';
+    if (mode & S_IXGRP) perms[6] = 'x';
 
-    // Отримуємо шлях через readlink
-    ssize_t len = readlink(proc_path, path, PATH_MAX - 1);
-    if (len == -1) {
-        free(path);
-        return NULL; // Не вдалося отримати шлях
-    }
-    path[len] = '\0';
-    return path;
+    if (mode & S_IROTH) perms[7] = 'r';
+    if (mode & S_IWOTH) perms[8] = 'w';
+    if (mode & S_IXOTH) perms[9] = 'x';
+
+    printf("%s ", perms);
 }
 
 int main() {
-    // Ініціалізація libprocstat
-    struct procstat *prstat = procstat_open_sysctl();
-    if (!prstat) {
-        fprintf(stderr, "Помилка ініціалізації procstat: %s\n", strerror(errno));
+    DIR *dir = opendir(".");
+    if (!dir) {
+        perror("opendir");
         return 1;
     }
 
-    // Отримуємо список усіх процесів
-    unsigned int count;
-    struct kinfo_proc *procs = procstat_getprocs(prstat, KERN_PROC_ALL, 0, &count);
-    if (!procs) {
-        fprintf(stderr, "Помилка отримання списку процесів: %s\n", strerror(errno));
-        procstat_close(prstat);
-        return 1;
-    }
+    struct dirent *entry;
+    struct stat st;
+    char timebuf[64];
 
-    // Виводимо заголовок
-    printf("%-8s %-16s %-16s %s\n", "PID", "USER", "PPID", "COMMAND");
+    while ((entry = readdir(dir)) != NULL) {
+        // Пропускаємо . і ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
 
-    // Проходимо по всіх процесах
-    for (unsigned int i = 0; i < count; i++) {
-        struct kinfo_proc *proc = &procs[i];
-
-        // Пропускаємо системні процеси (PID 0, ядро тощо)
-        if (proc->ki_pid == 0) {
+        // Отримуємо інформацію про файл
+        if (lstat(entry->d_name, &st) == -1) {
+            perror("lstat");
             continue;
         }
 
-        // Отримуємо батьківський процес (PPID)
-        pid_t ppid = proc->ki_ppid;
-        if (ppid == 0) {
-            continue; // Пропускаємо процеси без батьків (наприклад, init)
-        }
+        // Права доступу
+        print_permissions(st.st_mode);
 
-        // Отримуємо шлях до виконуваного файлу батьківського процесу
-        struct kinfo_proc *parent_proc = NULL;
-        for (unsigned int j = 0; j < count; j++) {
-            if (procs[j].ki_pid == ppid) {
-                parent_proc = &procs[j];
-                break;
+        // Кількість жорстких посилань
+        printf("%2lu ", (unsigned long)st.st_nlink);
+
+        // Власник
+        struct passwd *pw = getpwuid(st.st_uid);
+        printf("%-8s ", pw ? pw->pw_name : "unknown");
+
+        // Група
+        struct group *gr = getgrgid(st.st_gid);
+        printf("%-8s ", gr ? gr->gr_name : "unknown");
+
+        // Розмір файлу
+        printf("%8lld ", (long long)st.st_size);
+
+        // Час останньої модифікації
+        struct tm *tm = localtime(&st.st_mtime);
+        strftime(timebuf, sizeof(timebuf), "%b %d %H:%M", tm);
+        printf("%s ", timebuf);
+
+        // Ім'я файлу
+        printf("%s", entry->d_name);
+
+        // Якщо це символічне посилання — вивести куди воно вказує
+        if (S_ISLNK(st.st_mode)) {
+            char link_target[1024];
+            ssize_t len = readlink(entry->d_name, link_target, sizeof(link_target)-1);
+            if (len != -1) {
+                link_target[len] = '\0';
+                printf(" -> %s", link_target);
             }
         }
 
-        if (!parent_proc) {
-            continue; // Батьківський процес не знайдено
-        }
-
-        // Отримуємо шлях до виконуваного файлу батьківського процесу
-        char *parent_path = get_process_path(parent_proc);
-        if (!parent_path) {
-            continue; // Не вдалося отримати шлях
-        }
-
-        // Перевіряємо, чи батьківський процес є нестандартним шеллом
-        if (!is_standard_shell(parent_path)) {
-            // Отримуємо ім'я користувача
-            struct passwd *pw = getpwuid(proc->ki_uid);
-            const char *username = pw ? pw->pw_name : "unknown";
-
-            // Отримуємо командний рядок процесу
-            char **cmd = procstat_getargv(prstat, proc, 0);
-            const char *cmdline = cmd && cmd[0] ? cmd[0] : proc->ki_comm;
-
-            // Виводимо інформацію
-            printf("%-8d %-16s %-16d %s\n",
-                   proc->ki_pid,
-                   username,
-                   ppid,
-                   cmdline);
-
-            procstat_freeargv(prstat);
-        }
-
-        free(parent_path);
+        printf("\n");
     }
 
-    // Звільняємо ресурси
-    procstat_freeprocs(prstat, procs);
-    procstat_close(prstat);
+    closedir(dir);
     return 0;
 }
