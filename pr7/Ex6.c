@@ -16,7 +16,6 @@ int main() {
         perror("opendir");
         return 1;
     }
-
     struct dirent *entry;
     char *dirs[MAX_ENTRIES];
     int count = 0;
