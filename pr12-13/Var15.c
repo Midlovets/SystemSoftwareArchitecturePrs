@@ -3,76 +3,82 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 
-#define MAX_EVENTS 20
-#define MSG_LEN 128
+#define MAX_EVENTS 50
 
 typedef struct {
-    char msg[MSG_LEN];
-    time_t next_time;
-    int interval;
-    int active;
+    int signo;
+    time_t received;
+    pid_t sender;
 } Event;
 
-void add_event(Event *events, int *count) {
-    if (*count >= MAX_EVENTS) {
-        printf("Maximum number of events reached.\n");
-        return;
-    }
-    char buf[MSG_LEN];
-    int delay, interval;
-    printf("Enter reminder message: ");
-    fgets(buf, MSG_LEN, stdin);
-    buf[strcspn(buf, "\n")] = 0;
-    printf("In how many seconds should the reminder trigger? ");
-    scanf("%d", &delay);
-    printf("Repeat interval (0 - one-time): ");
-    scanf("%d", &interval);
-    getchar();
+Event events[MAX_EVENTS];
+int event_count = 0;
 
-    Event *e = &events[*count];
-    strncpy(e->msg, buf, MSG_LEN);
-    e->next_time = time(NULL) + delay;
-    e->interval = interval;
-    e->active = 1;
-    (*count)++;
+void handle_signal(int signo, siginfo_t *info, void *context) {
+    if (event_count >= MAX_EVENTS) return;
+    events[event_count].signo = signo;
+    events[event_count].received = time(NULL);
+    events[event_count].sender = info->si_pid;
+    event_count++;
+    printf("Received signal %d from PID %d at %ld\n", signo, info->si_pid, events[event_count-1].received);
 }
 
-void print_menu() {
-    printf("\n1. Add event\n2. Exit\nChoose an option: ");
+int cmp_events(const void *a, const void *b) {
+    Event *ea = (Event *)a, *eb = (Event *)b;
+    if (ea->received < eb->received) return -1;
+    if (ea->received > eb->received) return 1;
+    return 0;
+}
+
+void print_timeline() {
+    printf("\n--- Timeline ---\n");
+    for (int i = 0; i < event_count; i++) {
+        struct tm *tm_info = localtime(&events[i].received);
+        char buf[32];
+        strftime(buf, 32, "%H:%M:%S", tm_info);
+        printf("[%s] PID:%d SIGNAL:%s\n", buf, events[i].sender,
+            events[i].signo == SIGUSR1 ? "USR1" : (events[i].signo == SIGUSR2 ? "USR2" : "OTHER"));
+    }
+    printf("\nASCII timeline:\n");
+    for (int i = 0; i < event_count; i++) {
+        int pos = i * 4;
+        for (int j = 0; j < pos; j++) printf(" ");
+        printf("*");
+        printf("(%s)\n", events[i].signo == SIGUSR1 ? "USR1" : "USR2");
+    }
+}
+
+volatile sig_atomic_t stop = 0;
+
+void handle_sigint(int signo) {
+    stop = 1;
 }
 
 int main() {
-    Event events[MAX_EVENTS];
-    int event_count = 0;
-    int running = 1;
+    struct sigaction sa;
+    sa.sa_sigaction = handle_signal;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGUSR1, &sa, NULL);
+    sigaction(SIGUSR2, &sa, NULL);
 
-    while (running) {
-        print_menu();
-        int choice;
-        scanf("%d", &choice);
-        getchar();
-        if (choice == 1) {
-            add_event(events, &event_count);
-        } else if (choice == 2) {
-            running = 0;
-        } else {
-            printf("Invalid choice.\n");
-        }
+    struct sigaction sa_int;
+    sa_int.sa_handler = handle_sigint;
+    sa_int.sa_flags = 0;
+    sigemptyset(&sa_int.sa_mask);
+    sigaction(SIGINT, &sa_int, NULL);
 
-        time_t now = time(NULL);
-        for (int i = 0; i < event_count; i++) {
-            if (events[i].active && events[i].next_time <= now) {
-                printf("\n*** REMINDER: %s ***\n", events[i].msg);
-                if (events[i].interval > 0) {
-                    events[i].next_time = now + events[i].interval;
-                } else {
-                    events[i].active = 0;
-                }
-            }
-        }
-        sleep(1);
+    printf("Controller PID: %d\n", getpid());
+    printf("Send SIGUSR1 or SIGUSR2 from other processes to this PID.\n");
+    printf("Press Ctrl+C to stop and see the timeline.\n");
+
+    while (!stop) {
+        pause();
     }
-    printf("Done.\n");
+
+    qsort(events, event_count, sizeof(Event), cmp_events);
+    print_timeline();
     return 0;
 }
